@@ -1,0 +1,89 @@
+Host orion
+	HostName 192.168.128.128
+	User latona
+	Port 22
+
+Host mercury
+	HostName 192.168.128.132
+	User latona
+	Port 22
+
+Host pluto
+	HostName 192.168.128.135
+	User latona
+	Port 22
+
+Host parrot
+	HostName 192.168.128.217
+	User latona
+	Port 22
+
+Host vm
+	HostName 127.0.0.1
+	User latona
+	Port 222
+
+Host atmos
+	HostName 192.168.128.174
+	User latona
+	Port 22
+
+Host odin
+	HostName 192.168.128.98
+	User latona
+	Port 22
+
+Host titan
+	HostName 192.168.128.108
+	User latona
+	Port 22
+
+Host sirius
+	HostName 192.168.128.225
+	User latona
+	Port 22
+
+Host hades
+	HostName 192.168.128.148
+	User latona
+	Port 22
+
+Host jupiter
+	HostName 192.168.128.19
+	User latona
+	Port 22
+
+Host lepus
+	HostName 192.168.128.55
+	User latona
+	Port 22
+
+Host aurora
+	HostName 192.168.128.103
+	User latona
+	Port 22
+
+Host atlas
+	HostName 192.168.128.175
+	User latona
+
+Host vega
+	HostName 192.168.128.5
+	User latona
+	Port 22
+
+Host moon
+	HostName 192.168.128.185
+	User latona
+	Port 22
+
+Host usb-jetson
+	HostName 192.168.55.1
+	User latona
+	Port 22
+
+Host portable-router
+	HostName 192.168.0.103
+	User latona
+	Port 22
+

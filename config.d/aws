@@ -1,0 +1,11 @@
+HOST aws-latona-v1-tao-original-dataset-test-v1
+	HostName ec2-35-162-114-108.us-west-2.compute.amazonaws.com
+	User ubuntu
+	IdentityFile ~/.ssh/keys/aws/id_rsa_doi
+
+HOST aws-latona-tao-test-4
+	HostName 3.139.104.203 
+	User ubuntu
+	IdentityFile ~/.ssh/keys/aws/tao-test.pem
+
+
