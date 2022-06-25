@@ -10,12 +10,12 @@ git clone https://github.com/KyotaHelloworld/.ssh.git ~/.ssh
 
 
 ## private key
-- *! ! ! caution* ***DO NOT track, commit and push private keys*** 
+- *! ! ! caution* ***DO NOT track, commit and push Your Private Keys*** 
 
 - when create new key, use make command.
     - add dash(-) and service name.
     ```sh
-    make new-key-ANY_SERVICE
+    make new-key-ServiceName
     ```
     - example for creating github key
     ```sh
