@@ -1,0 +1,17 @@
+Host desktop-home-local
+	HostName 192.168.0.14
+	User baikimman
+	IdentityFile ~/.ssh/keys/mydesktop/id
+
+Host desktop-global
+	HostName butterflygate.com
+	User baikimman
+	IdentityFile ~/.ssh/keys/mydesktop/id
+
+Host desktop-latona-local
+	HostName 192.168.128.78
+	User baikimman
+	Port 30405
+	IdentityFile ~/.ssh/keys/mydesktop/id
+
+

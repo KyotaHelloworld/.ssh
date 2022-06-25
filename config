@@ -4,37 +4,4 @@ Include ~/.ssh/config.d/*
 # =================
 
 Host *
-	ServerAliveInterval 30
-
-
-Host desktop-home-local
-	HostName 192.168.0.14
-	User baikimman
-	IdentityFile ~/.ssh/keys/mydesktop/ed
-
-Host desktop-global
-	HostName butterflygate.com
-	User baikimman
-	IdentityFile ~/.ssh/keys/mydesktop/ed
-
-Host desktop-latona-local
-	HostName 192.168.128.78
-	User baikimman
-	Port 30405
-	IdentityFile ~/.ssh/keys/mydesktop/ed
-
-Host github.com
-	HostName github.com
-	User git
-	IdentityFile ~/.ssh/keys/github/id_rsa
-	#TCPKeepAlive yes
-	#IdentitiesOnly yes
-
-Host bitbucket.org
-	HostName bitbucket.org
-	User git
-	IdentityFile ~/.ssh/keys/bitbucket/id_rsa
-	#TCPKeepAlive yes
-	#IdentitiesOnly yes
-
-
+	ServerAliveInterval 60

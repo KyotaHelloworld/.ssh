@@ -1,0 +1,7 @@
+Host bitbucket.org
+	HostName bitbucket.org
+	User git
+	IdentityFile ~/.ssh/keys/bitbucket/id_rsa
+	#TCPKeepAlive yes
+	#IdentitiesOnly yes
+

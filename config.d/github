@@ -1,0 +1,8 @@
+Host github.com
+	HostName github.com
+	User git
+	IdentityFile ~/.ssh/keys/github/id
+	#TCPKeepAlive yes
+	#IdentitiesOnly yes
+
+
