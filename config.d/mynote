@@ -2,13 +2,13 @@ HOST note-home
 	HostName 192.168.0.15
 	User ampamman
 	Port 413
-	IdentityFile ~/.ssh/keys/mynote/ed
+	IdentityFile ~/.ssh/keys/mynote/id
 
 HOST note-latona
 	HostName 192.168.129.206
 	User ampamman
 	Port 413
-	IdentityFile ~/.ssh/keys/mynote/ed
+	IdentityFile ~/.ssh/keys/mynote/id
 
 
 HOST nullptr
