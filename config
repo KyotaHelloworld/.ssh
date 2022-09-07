@@ -1,6 +1,6 @@
 # ==================
 # config include
-Include ~/.ssh/config.d/*
+Include ~/.ssh/config.d/*.conf
 # =================
 
 Host *
