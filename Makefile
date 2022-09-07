@@ -6,9 +6,11 @@ help:
 ###################### settings #####################
 
 CT = ed25519 # crypto type
-DEFAULT_TITLE = github bitbucket mynote mydesktop
 PP = "" # passphrase
-FN = id
+FN = id # key file name
+
+# new-key-default creates  
+DEFAULT_TITLE = github bitbucket mynote mydesktop
 
 #####################################################
 
@@ -28,18 +30,17 @@ new-key-%:
 	@if test "$(TITLE)" = "default"; then exit 1 ; fi 
 	
 	@mkdir -p keys/$(TITLE)
-	@touch keys/$(TITLE)/.gitkeep
 	@-( ssh-keygen -t $(CT) -fkeys/$(TITLE)/$(FN) -a 100 -N $(PP) -q && echo "new $(CT) type key is correctly generated in keys/$(TITLE)") || \
 		echo skip generate key of $(TITLE)
 
 directory%:
 	@mkdir -p keys/${@:directory%=%}
-	@touch keys/${@:directory%=%}/.gitkeep
 
 key%:
 	@$(eval TITLE := ${@:key%=%}) 
-	@-( ssh-keygen -t $(CT) -fkeys/$(TITLE)/$(FN) -a 100 -N $(PP) -q && echo "new $(CT) type key is correctly generated in keys/$(TITLE)") || \
-	echo skip generate key of $(TITLE)
+	@-( ssh-keygen -t $(CT) -fkeys/$(TITLE)/$(FN) -a 100 -N $(PP) -q \
+	&& echo "new $(CT) type key is correctly generated in keys/$(TITLE)") \
+	|| echo skip generate key of $(TITLE)
 
 .PHONY: default
 check-default:

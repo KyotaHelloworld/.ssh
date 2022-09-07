@@ -10,3 +10,10 @@ HOST note-latona
 	Port 413
 	IdentityFile ~/.ssh/keys/mynote/ed
 
+
+HOST nullptr
+	HostName 192.168.129.206
+	User nullptr
+	Port 413
+	IdentityFile ~/.ssh/keys/mynote/nullptr.ed
+
