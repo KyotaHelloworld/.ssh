@@ -70,3 +70,6 @@ new-key-usage-detail:
 	@echo "- !countion. next command generate some keys with same PP"
 	@echo "    \$$ make new-key-default PP=mypassphrase"
 	@echo ""
+
+mytest:
+	./shells/gen.sh hel
