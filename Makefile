@@ -11,7 +11,7 @@ PP = "" # passphrase
 FN = id # key file name
 
 # new-key-default creates  
-DEFAULT_TITLE = github bitbucket mynote mydesktop
+DEFAULT_TITLE = github forgejo
 
 #####################################################
 
