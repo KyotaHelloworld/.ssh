@@ -1,0 +1,8 @@
+# ==================
+# config include
+Include ~/.ssh/config.d/*.conf
+# =================
+
+Host *
+	ServerAliveInterval 60
+	IPQoS cs1

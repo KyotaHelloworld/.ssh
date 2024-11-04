@@ -1,0 +1,5 @@
+# .ssh/keys dir gitignore setting
+# この directory に属する全ファイルを追跡から除外。ただし sample と このファイルは追跡対象とする。
+/*
+!/.gitignore
+!/sample

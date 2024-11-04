@@ -1,0 +1,12 @@
+*private*
+authorized_keys
+known_hosts*
+
+
+# !! COUTION
+# DO NOT TRACK 'keys' directory
+# keys directory has gitignore file. read it.
+
+# 注意
+# keys ディレクトリは、追跡対象から除外してください。
+# keys ディレクトリの gitignore ファイルを確認してください。
