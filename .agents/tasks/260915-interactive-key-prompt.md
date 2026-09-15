@@ -2,7 +2,7 @@
 
 - Branch: `feature/interactive-key-prompt`
 - Worktree: external task worktree `interactive-key-prompt`
-- Status: validated; awaiting user acceptance for local master integration
+- Status: accepted after successful SSH login; authorized for local master integration
 
 ## Acceptance
 
@@ -33,6 +33,8 @@
   key/config regression cases passed.
 - `git diff --check` and Make help checks passed.
 - `keys/sample/id` and `keys/sample/id.pub` are unchanged.
+- kyota confirmed that SSH login works after using the generated connection
+  settings.
 
 ## Intended commit
 

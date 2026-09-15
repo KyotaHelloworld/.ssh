@@ -6,3 +6,5 @@
 - The questions should appear in login-user then connection-address order and
   populate the generated SSH config fragment.
 - The connection address accepts either an IP address or a domain name.
+- kyota accepted the result and confirmed that SSH login works with the
+  generated setup.
