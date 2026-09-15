@@ -1,4 +1,4 @@
-# Chat: Interactive ConoHa key setup
+# Chat: Interactive SSH key setup
 
 - kyota initially requested interactive login and IP questions for
   `make new-key-conoha`, then expanded the requirement to every
