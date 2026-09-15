@@ -45,6 +45,7 @@ new-key: ## Show key-generation usage
 	@./shells/new-key.sh --help
 
 new-key-%: export SSH_NEW_KEY_NAME = $*
+new-key-%: export SSH_NEW_KEY_PROMPT_CONNECTION = 1
 new-key-%: FORCE
 	@./shells/new-key.sh
 

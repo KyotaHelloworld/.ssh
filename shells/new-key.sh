@@ -24,6 +24,7 @@ Options:
   --key-file <filename>   Private-key filename (default: id).
   --comment <comment>     Public-key comment (default: ssh-key:<name>).
   --no-passphrase         Explicitly create the key without a passphrase.
+  --prompt-connection     Prompt for a missing login user and IP/domain.
   --skip-existing         Succeed without changes when both outputs already exist.
   -h, --help              Show this help.
 
@@ -31,6 +32,7 @@ Environment:
   SSH_NEW_KEY_NAME, SSH_NEW_KEY_HOST, SSH_NEW_KEY_USER, SSH_NEW_KEY_PORT,
   SSH_NEW_KEY_TYPE, SSH_NEW_KEY_FILE, SSH_NEW_KEY_COMMENT, and
   SSH_NEW_KEY_NO_PASSPHRASE provide the same values for Makefile integration.
+  SSH_NEW_KEY_PROMPT_CONNECTION enables connection prompts, and
   SSH_NEW_KEY_SKIP_EXISTING controls idempotent batch generation.
 
 Passphrase handling:
@@ -60,6 +62,7 @@ KEY_TYPE="${SSH_NEW_KEY_TYPE:-${DEFAULT_KEY_TYPE}}"
 KEY_FILE="${SSH_NEW_KEY_FILE:-${DEFAULT_KEY_FILE}}"
 KEY_COMMENT="${SSH_NEW_KEY_COMMENT:-}"
 NO_PASSPHRASE="${SSH_NEW_KEY_NO_PASSPHRASE:-0}"
+PROMPT_CONNECTION="${SSH_NEW_KEY_PROMPT_CONNECTION:-0}"
 SKIP_EXISTING="${SSH_NEW_KEY_SKIP_EXISTING:-0}"
 SHOW_HELP=0
 SKIPPED=0
@@ -111,6 +114,10 @@ parse_args() {
         ;;
       --no-passphrase)
         NO_PASSPHRASE=1
+        shift
+        ;;
+      --prompt-connection)
+        PROMPT_CONNECTION=1
         shift
         ;;
       --skip-existing)
@@ -166,13 +173,19 @@ validate_inputs() {
     0 | 1) ;;
     *) die "SSH_NEW_KEY_NO_PASSPHRASE must be 0 or 1" || return 1 ;;
   esac
+  case "${PROMPT_CONNECTION}" in
+    0 | 1) ;;
+    *) die "SSH_NEW_KEY_PROMPT_CONNECTION must be 0 or 1" || return 1 ;;
+  esac
   case "${SKIP_EXISTING}" in
     0 | 1) ;;
     *) die "SSH_NEW_KEY_SKIP_EXISTING must be 0 or 1" || return 1 ;;
   esac
 
-  if [[ -n "${HOST_NAME}" && ! "${HOST_NAME}" =~ ^[A-Za-z0-9][A-Za-z0-9.:-]*$ ]]; then
-    die "hostname contains unsupported characters" || return 1
+  if [[ -n "${HOST_NAME}" &&
+    ! "${HOST_NAME}" =~ ^[A-Za-z0-9][A-Za-z0-9.:-]*$ &&
+    ! "${HOST_NAME}" =~ ^:[0-9A-Fa-f:]+$ ]]; then
+    die "IP address or domain contains unsupported characters" || return 1
   fi
   if [[ -n "${REMOTE_USER}" && ! "${REMOTE_USER}" =~ ^[A-Za-z0-9_][A-Za-z0-9._-]*$ ]]; then
     die "remote user contains unsupported characters" || return 1
@@ -189,6 +202,22 @@ validate_inputs() {
   fi
 
   [[ -n "${KEY_COMMENT}" ]] || KEY_COMMENT="ssh-key:${NEW_KEY_NAME}"
+}
+
+prompt_for_connection() {
+  [[ "${PROMPT_CONNECTION}" == "1" ]] || return 0
+
+  if [[ -z "${REMOTE_USER}" ]]; then
+    printf 'Login user name: ' >&2
+    IFS= read -r REMOTE_USER || die "login user name input ended unexpectedly" || return 1
+  fi
+  if [[ -z "${HOST_NAME}" ]]; then
+    printf 'IP address or domain: ' >&2
+    IFS= read -r HOST_NAME || die "IP address or domain input ended unexpectedly" || return 1
+  fi
+
+  [[ -n "${REMOTE_USER}" ]] || die "login user name is required" || return 1
+  [[ -n "${HOST_NAME}" ]] || die "IP address or domain is required" || return 1
 }
 
 resolve_output_paths() {
@@ -329,6 +358,8 @@ run() {
       "${NEW_KEY_NAME}" "${NEW_KEY_NAME}" "${CONFIG_EXTENSION}"
     return 0
   fi
+  prompt_for_connection || return 1
+  validate_inputs || return 1
   generate_staged_outputs
   publish_outputs
 
