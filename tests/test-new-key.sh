@@ -58,6 +58,13 @@ assert_not_contains() {
   fi
 }
 
+assert_equals() {
+  local expected="$1"
+  local actual="$2"
+  [[ "${actual}" == "${expected}" ]] ||
+    die "expected '${expected}', got '${actual}'"
+}
+
 assert_mode() {
   local expected="$1"
   local path="$2"
@@ -73,13 +80,18 @@ expect_failure() {
   fi
 }
 
+create_fixture_at() {
+  local fixture_path="$1"
+  mkdir -p -- "${fixture_path}/shells" "${fixture_path}/keys" "${fixture_path}/config.d"
+  cp -- "${PROJECT_ROOT}/Makefile" "${fixture_path}/Makefile"
+  cp -- "${PROJECT_ROOT}/shells/new-key.sh" "${fixture_path}/shells/new-key.sh"
+  chmod 755 -- "${fixture_path}/shells/new-key.sh"
+}
+
 create_fixture() {
   TEMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/ssh-new-key-test.XXXXXXXX")"
   FIXTURE_ROOT="${TEMP_ROOT}/repo"
-  mkdir -p -- "${FIXTURE_ROOT}/shells" "${FIXTURE_ROOT}/keys" "${FIXTURE_ROOT}/config.d"
-  cp -- "${PROJECT_ROOT}/Makefile" "${FIXTURE_ROOT}/Makefile"
-  cp -- "${PROJECT_ROOT}/shells/new-key.sh" "${FIXTURE_ROOT}/shells/new-key.sh"
-  chmod 755 -- "${FIXTURE_ROOT}/shells/new-key.sh"
+  create_fixture_at "${FIXTURE_ROOT}"
 }
 
 test_complete_generation() {
@@ -117,13 +129,95 @@ test_complete_generation() {
   grep -Fqx 'identitiesonly yes' <<<"${resolved_config}" || die "IdentitiesOnly was not applied"
 }
 
+test_interactive_make_generation() {
+  local prompt_output
+  prompt_output="$(
+    printf '%s\n' deploy server.example.com |
+      make -C "${FIXTURE_ROOT}" --no-print-directory \
+        new-key-conoha NO_PASSPHRASE=1 2>&1 >/dev/null
+  )"
+
+  assert_equals "Login user name: IP address or domain: " "${prompt_output}"
+  assert_file "${FIXTURE_ROOT}/keys/conoha/id"
+  assert_contains "Host conoha" "${FIXTURE_ROOT}/config.d/conoha.conf"
+  assert_contains "    HostName server.example.com" "${FIXTURE_ROOT}/config.d/conoha.conf"
+  assert_contains "    User deploy" "${FIXTURE_ROOT}/config.d/conoha.conf"
+}
+
+test_preseeded_values_skip_prompts() {
+  local preset_root="${TEMP_ROOT}/preset-repo"
+  local prompt_output
+  create_fixture_at "${preset_root}"
+
+  prompt_output="$(
+    make -C "${preset_root}" --no-print-directory \
+      new-key-conoha \
+      NO_PASSPHRASE=1 \
+      HOST_NAME=198.51.100.7 \
+      REMOTE_USER=root 2>&1 >/dev/null
+  )"
+
+  assert_equals "" "${prompt_output}"
+  assert_contains "    HostName 198.51.100.7" "${preset_root}/config.d/conoha.conf"
+  assert_contains "    User root" "${preset_root}/config.d/conoha.conf"
+
+  make -C "${preset_root}" --no-print-directory \
+    new-key-ipv6 \
+    NO_PASSPHRASE=1 \
+    HOST_NAME=::1 \
+    REMOTE_USER=root >/dev/null
+  assert_contains "    HostName ::1" "${preset_root}/config.d/ipv6.conf"
+}
+
+test_partial_preseed_skips_one_prompt() {
+  local partial_root="${TEMP_ROOT}/partial-preset-repo"
+  local prompt_output
+  create_fixture_at "${partial_root}"
+
+  prompt_output="$(
+    printf '%s\n' app-user |
+      make -C "${partial_root}" --no-print-directory \
+        new-key-partial \
+        NO_PASSPHRASE=1 \
+        HOST_NAME=partial.example 2>&1 >/dev/null
+  )"
+
+  assert_equals "Login user name: " "${prompt_output}"
+  assert_contains "    HostName partial.example" "${partial_root}/config.d/partial.conf"
+  assert_contains "    User app-user" "${partial_root}/config.d/partial.conf"
+}
+
+test_incomplete_interactive_input_leaves_no_output() {
+  local failure_root="${TEMP_ROOT}/prompt-failure-repo"
+  create_fixture_at "${failure_root}"
+
+  if printf '%s\n' deploy |
+    make -C "${failure_root}" --no-print-directory \
+      new-key-conoha NO_PASSPHRASE=1 >/dev/null 2>&1; then
+    die "ConoHa generation unexpectedly accepted incomplete input"
+  fi
+  [[ ! -e "${failure_root}/keys/conoha" ]] ||
+    die "incomplete input created a key directory"
+  [[ ! -e "${failure_root}/config.d/conoha.conf" ]] ||
+    die "incomplete input created a config fragment"
+
+  if printf '%s\n' deploy 'invalid domain' |
+    make -C "${failure_root}" --no-print-directory \
+      new-key-invalid-address NO_PASSPHRASE=1 >/dev/null 2>&1; then
+    die "key generation unexpectedly accepted an invalid connection address"
+  fi
+  [[ ! -e "${failure_root}/keys/invalid-address" ]] ||
+    die "invalid connection input created a key directory"
+}
+
 test_default_generation_resumes() {
   local github_key="${FIXTURE_ROOT}/keys/github/id"
   local github_hash_before
   github_hash_before="$(sha256sum -- "${github_key}")"
 
-  make -C "${FIXTURE_ROOT}" --no-print-directory \
-    new-key-default NO_PASSPHRASE=1 >/dev/null
+  printf '%s\n' forgejo-user forgejo.example |
+    make -C "${FIXTURE_ROOT}" --no-print-directory \
+      new-key-default NO_PASSPHRASE=1 >/dev/null 2>&1
 
   [[ "$(sha256sum -- "${github_key}")" == "${github_hash_before}" ]] ||
     die "default generation replaced an existing key"
@@ -132,10 +226,7 @@ test_default_generation_resumes() {
 }
 
 test_minimal_generation() {
-  (
-    cd -- "${FIXTURE_ROOT}"
-    make --no-print-directory new-key-internal NO_PASSPHRASE=1 >/dev/null
-  )
+  "${FIXTURE_ROOT}/shells/new-key.sh" --no-passphrase internal >/dev/null
 
   local fragment="${FIXTURE_ROOT}/config.d/internal.conf"
   assert_file "${fragment}"
@@ -202,7 +293,12 @@ test_config_collision_leaves_no_key() {
 
 test_legacy_variables() {
   make -C "${FIXTURE_ROOT}" --no-print-directory \
-    new-key-legacy NO_PASSPHRASE=1 CT=rsa FN=legacy.id >/dev/null
+    new-key-legacy \
+    NO_PASSPHRASE=1 \
+    CT=rsa \
+    FN=legacy.id \
+    HOST_NAME=legacy.example \
+    REMOTE_USER=legacy >/dev/null
   assert_file "${FIXTURE_ROOT}/keys/legacy/legacy.id"
   ssh-keygen -lf "${FIXTURE_ROOT}/keys/legacy/legacy.id.pub" |
     grep -Fq '(RSA)' || die "legacy CT variable did not select RSA"
@@ -249,6 +345,10 @@ run() {
   require_command stat || return 1
   create_fixture
   test_complete_generation
+  test_interactive_make_generation
+  test_preseeded_values_skip_prompts
+  test_partial_preseed_skips_one_prompt
+  test_incomplete_interactive_input_leaves_no_output
   test_default_generation_resumes
   test_minimal_generation
   test_direct_cli_generation

@@ -50,8 +50,22 @@ Host github
     IdentitiesOnly yes
 ```
 
-`HOST_NAME`, `REMOTE_USER`, and `SSH_PORT` are optional. Without them, the
-fragment still contains `Host`, `IdentityFile`, and `IdentitiesOnly`.
+Every `make new-key-<name>` command asks for connection values that were not
+supplied on the command line:
+
+```console
+$ make new-key-conoha
+Login user name: deploy
+IP address or domain: 203.0.113.10
+```
+
+The connection value may be an IP address or a domain name. The answers are
+written as `User` and `HostName`. Supplying `REMOTE_USER` or `HOST_NAME` on the
+command line skips the corresponding question. After these questions,
+`ssh-keygen` securely asks for the key passphrase as usual.
+
+The direct `shells/new-key.sh` command keeps these values optional unless
+`--prompt-connection` is specified.
 
 Additional options:
 
