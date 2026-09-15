@@ -1,73 +1,62 @@
-:# Self-Documented Makefile
-.PHONY: help
-help:
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' Makefile \
-		| awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+.DEFAULT_GOAL := help
 
-###################### settings #####################
+KEY_TYPE ?= ed25519
+KEY_FILE ?= id
+HOST_NAME ?=
+REMOTE_USER ?=
+SSH_PORT ?=
+KEY_COMMENT ?=
+NO_PASSPHRASE ?= 0
+SKIP_EXISTING ?= 0
 
-CT = ed25519 # crypto type
-PP = "" # passphrase
-FN = id # key file name
+ifneq ($(origin CT), undefined)
+ifneq ($(origin KEY_TYPE), file)
+$(error use only one of CT and KEY_TYPE)
+endif
+KEY_TYPE := $(value CT)
+endif
 
-# new-key-default creates  
-DEFAULT_TITLE = github forgejo
+ifneq ($(origin FN), undefined)
+ifneq ($(origin KEY_FILE), file)
+$(error use only one of FN and KEY_FILE)
+endif
+KEY_FILE := $(value FN)
+endif
 
-#####################################################
+ifneq ($(origin PP), undefined)
+$(error PP is no longer supported; let ssh-keygen prompt or set NO_PASSPHRASE=1)
+endif
 
-new-key-usage: ## print USAGE
-new-key-usage-detail: ## print more detail usage
+export SSH_NEW_KEY_TYPE := $(value KEY_TYPE)
+export SSH_NEW_KEY_FILE := $(value KEY_FILE)
+export SSH_NEW_KEY_HOST := $(value HOST_NAME)
+export SSH_NEW_KEY_USER := $(value REMOTE_USER)
+export SSH_NEW_KEY_PORT := $(value SSH_PORT)
+export SSH_NEW_KEY_COMMENT := $(value KEY_COMMENT)
+export SSH_NEW_KEY_NO_PASSPHRASE := $(value NO_PASSPHRASE)
+export SSH_NEW_KEY_SKIP_EXISTING := $(value SKIP_EXISTING)
 
-check-default: ## new-key-default で作成される鍵一覧
-new-key-default: ## 基本的に必要そうな鍵を作る。check-default で確認してください。
+.PHONY: help new-key new-key-usage new-key-usage-detail check-default new-key-default FORCE
 
+help: ## Show available commands
+	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "\033[36m%-24s\033[0m %s\n", $$1, $$2}' Makefile
 
-new-key-default: $(addprefix directory, $(DEFAULT_TITLE)) $(addprefix key, $(DEFAULT_TITLE)) 
-new-key-%:
-	@$(eval TITLE := ${@:new-key-%=%}) 
-	@# title が指定されなかったら終了させる。TITLEには、.o が入る。
-	@if test "$(TITLE)" = ".o"; then exit 1; fi 
-	@# new-key-default を実行したときに、TITLE=default で実行される処理を無視
-	@if test "$(TITLE)" = "default"; then exit 1 ; fi 
-	
-	@mkdir -p keys/$(TITLE)
-	@-( ssh-keygen -t $(CT) -fkeys/$(TITLE)/$(FN) -a 100 -N $(PP) -q && echo "new $(CT) type key is correctly generated in keys/$(TITLE)") || \
-		echo skip generate key of $(TITLE)
+new-key: ## Show key-generation usage
+	@./shells/new-key.sh --help
 
-directory%:
-	@mkdir -p keys/${@:directory%=%}
+new-key-%: export SSH_NEW_KEY_NAME = $*
+new-key-%: FORCE
+	@./shells/new-key.sh
 
-key%:
-	@$(eval TITLE := ${@:key%=%}) 
-	@-( ssh-keygen -t $(CT) -fkeys/$(TITLE)/$(FN) -a 100 -N $(PP) -q \
-	&& echo "new $(CT) type key is correctly generated in keys/$(TITLE)") \
-	|| echo skip generate key of $(TITLE)
+new-key-default: ## Create the default key/config set sequentially
+	@$(MAKE) --no-print-directory new-key-github SKIP_EXISTING=1
+	@$(MAKE) --no-print-directory new-key-forgejo SKIP_EXISTING=1
 
-.PHONY: default
-check-default:
-	@echo "'make new-key-default' creates..."  
-	@echo "    $(DEFAULT_TITLE)"
-	@echo ""
+check-default: ## Show names created by new-key-default
+	@printf '%s\n' "'make new-key-default' creates:" "    github forgejo"
 
-.PHONY: new-key new-key- new-key-usage
-new-key new-key- new-key-usage:
-	@echo usage for new-key
-	@echo "  - add dash(-) and title."
-	@echo "  - ex) if you want to generate a new key for github"
-	@echo "             \$$ make new-key-github"
-	@echo "        then, keys/github has id and id.pub will be created."
-	@echo ""
-	@echo "more detail usage?"
-	@echo "  make new-key-usage-detail"
-	@echo ""
+new-key-usage: new-key ## Alias for new-key help
 
-.PHONY: new-key-usage-detail
-new-key-usage-detail:
-	@echo "- you can specify crypto type"
-	@echo "    \$$ make new-key-github CT=rsa"
-	@echo ""
-	@echo "- you can use passphrase"
-	@echo "    \$$ make new-key-github PP=mypassphrase"
-	@echo "- !countion. next command generate some keys with same PP"
-	@echo "    \$$ make new-key-default PP=mypassphrase"
-	@echo ""
+new-key-usage-detail: new-key ## Legacy alias for new-key help
+
+FORCE:

@@ -1,41 +1,89 @@
-# ssh setting directory
+# SSH settings directory
 
-## installation
-1. backup .ssh directory and clone
+## Installation
+
+Back up an existing SSH directory before cloning:
+
 ```sh
-ls ~.ssh && mv ~/.ssh ~/.ssh.bk
-git clone https://github.com/KyotaHelloworld/.ssh.git ~/.ssh
+(
+    set -eu
+    test ! -e ~/.ssh.new
+    test ! -e ~/.ssh.bk
+    git clone https://github.com/KyotaHelloworld/.ssh.git ~/.ssh.new
+    chmod 700 ~/.ssh.new
+    if test -e ~/.ssh; then mv ~/.ssh ~/.ssh.bk; fi
+    if ! mv ~/.ssh.new ~/.ssh; then
+        if test -e ~/.ssh.bk; then mv ~/.ssh.bk ~/.ssh; fi
+        exit 1
+    fi
+)
 ```
-1. put keys created before onto `~/.ssh/keys/`
 
+Restore any required keys, private config fragments, `known_hosts`, and
+`authorized_keys` from the backup after the clone.
 
-## private key
-- *! ! ! caution* ***DO NOT track, commit and push Your Private Keys*** 
+## Create a key and config fragment
 
-- when create new key, use make command.
-    - add dash(-) and service name.
-    ```sh
-    make new-key-ServiceName
-    ```
-    - example for creating github key
-    ```sh
-    make new-key-github 
-    ```
-    - `$ make` prints help.
-- for your privacy safe, use ed25519 key.
-    - make commands use ed25519 as default.
-    - use `CT` param to change key type
-    ```sh
-    make CT=rsa new-key-github
-    ```
-- key file is basically named `id` & `id.pub`.
-    - you can change file name using `FN` param.
-    ```sh
-    make FN=ed25519.id new-key-github
-    ```
-- key file is located at `~/.ssh/keys/[ServiceName]/id`
+The generation command creates both the key pair and a matching ignored
+`config.d/<name>.conf` fragment. Existing output is never overwritten.
 
-## config file
-- config files are stored in `~/.ssh/config.d/`.
-    - a file include *private* in the name will be not tracking.
+```sh
+make new-key-github HOST_NAME=github.com REMOTE_USER=git
+```
 
+This creates:
+
+```text
+keys/github/id
+keys/github/id.pub
+config.d/github.conf
+```
+
+The generated fragment contains every supplied connection value plus the values
+that can always be derived safely:
+
+```sshconfig
+Host github
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/keys/github/id
+    IdentitiesOnly yes
+```
+
+`HOST_NAME`, `REMOTE_USER`, and `SSH_PORT` are optional. Without them, the
+fragment still contains `Host`, `IdentityFile`, and `IdentitiesOnly`.
+
+Additional options:
+
+```sh
+# RSA 4096-bit key with a custom filename
+make new-key-service KEY_TYPE=rsa KEY_FILE=service.id
+
+# CT and FN remain supported as legacy aliases
+make new-key-service CT=rsa FN=service.id
+
+# Explicitly create a key without a passphrase
+make new-key-service NO_PASSPHRASE=1
+
+# Show all options
+make new-key
+```
+
+By default, `ssh-keygen` prompts securely for the passphrase. A passphrase is
+never accepted as a Make variable or command-line argument.
+
+`make new-key-default` creates the `github` and `forgejo` entries sequentially.
+Complete existing entries are skipped, so an interrupted run can be resumed;
+partial entries still fail instead of being overwritten.
+
+## Private keys
+
+Do not track real private keys. Files below `keys/` are ignored except for the
+intentional, unused `keys/sample/` fixture.
+
+The default key type is Ed25519. Use RSA only when compatibility requires it.
+
+## SSH config
+
+The root `config` includes `~/.ssh/config.d/*.conf`. Generated fragments are
+ignored because they can contain private host and account information.
