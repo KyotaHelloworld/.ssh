@@ -2,7 +2,7 @@
 
 - Branch: `feature/key-config-generator`
 - Worktree: external task worktree `key-config-generator`
-- Status: validated; awaiting user acceptance for local master integration
+- Status: accepted; local master integration authorized
 
 ## Acceptance
 

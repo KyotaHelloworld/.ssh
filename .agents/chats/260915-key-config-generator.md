@@ -6,3 +6,4 @@
 - `keys/sample/id` is an intentional unused fixture and must remain tracked.
 - The implementation should reject unsafe names, avoid passphrases in command
   arguments, preserve existing files, and keep private config fragments ignored.
+- kyota accepted the validated implementation for local master integration.
