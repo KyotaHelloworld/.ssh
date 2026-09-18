@@ -8,6 +8,7 @@ SSH_PORT ?=
 KEY_COMMENT ?=
 NO_PASSPHRASE ?= 0
 SKIP_EXISTING ?= 0
+CONNECTION_NAME ?=
 
 ifneq ($(origin CT), undefined)
 ifneq ($(origin KEY_TYPE), file)
@@ -35,8 +36,11 @@ export SSH_NEW_KEY_PORT := $(value SSH_PORT)
 export SSH_NEW_KEY_COMMENT := $(value KEY_COMMENT)
 export SSH_NEW_KEY_NO_PASSPHRASE := $(value NO_PASSPHRASE)
 export SSH_NEW_KEY_SKIP_EXISTING := $(value SKIP_EXISTING)
+export SSH_ADD_CONNECTION_NAME := $(value CONNECTION_NAME)
+export SSH_ADD_CONNECTION_HOST := $(value HOST_NAME)
+export SSH_ADD_CONNECTION_PORT := $(value SSH_PORT)
 
-.PHONY: help new-key new-key-usage new-key-usage-detail check-default new-key-default FORCE
+.PHONY: help new-key add-connection new-key-usage new-key-usage-detail check-default new-key-default FORCE
 
 help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "\033[36m%-24s\033[0m %s\n", $$1, $$2}' Makefile
@@ -44,10 +48,18 @@ help: ## Show available commands
 new-key: ## Show key-generation usage
 	@./shells/new-key.sh --help
 
+add-connection: ## Show usage for adding another route to an existing machine
+	@./shells/add-connection.sh --help
+
 new-key-%: export SSH_NEW_KEY_NAME = $*
 new-key-%: export SSH_NEW_KEY_PROMPT_CONNECTION = 1
 new-key-%: FORCE
 	@./shells/new-key.sh
+
+add-connection-%: export SSH_ADD_CONNECTION_BASE_NAME = $*
+add-connection-%: export SSH_ADD_CONNECTION_PROMPT = 1
+add-connection-%: FORCE
+	@./shells/add-connection.sh
 
 new-key-default: ## Create the default key/config set sequentially
 	@$(MAKE) --no-print-directory new-key-github SKIP_EXISTING=1
