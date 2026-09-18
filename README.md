@@ -67,6 +67,46 @@ command line skips the corresponding question. After these questions,
 The direct `shells/new-key.sh` command keeps these values optional unless
 `--prompt-connection` is specified.
 
+## Add another route to the same machine
+
+An existing machine can have separate IPv6, IPv4, and VPN addresses while
+using the same login user and key. Add a route without generating or copying a
+private key:
+
+```console
+$ make add-connection-bakery
+Connection suffix (for example v6, v4, or vpn): v6
+IP address or domain: 2001:db8::10
+```
+
+This creates `config.d/bakery-v6.conf` with the alias `bakery-v6`. It copies
+the current `User`, `Port`, `IdentityFile`, and `IdentitiesOnly` values from
+`config.d/bakery.conf`. The original fragment and `keys/bakery/` remain
+unchanged. Repeat the command with `v4` or `vpn` to add those routes.
+
+Values may be supplied for non-interactive use:
+
+```sh
+make add-connection-bakery \
+    CONNECTION_NAME=vpn \
+    HOST_NAME=bakery.vpn.example
+
+# Override the copied port only when this route needs a different listener.
+make add-connection-bakery \
+    CONNECTION_NAME=v4 \
+    HOST_NAME=198.51.100.20 \
+    SSH_PORT=22
+```
+
+Route fragments are snapshots: changing the base fragment later does not
+update routes already added. Existing aliases and config fragments are never
+overwritten. Direct script usage stays non-interactive unless
+`--prompt-connection` is supplied; see `make add-connection` for every option.
+
+Each alias performs its own normal SSH host-key verification because this
+command does not add `HostKeyAlias`. That avoids silently trusting that every
+address actually reaches the same SSH server.
+
 Additional options:
 
 ```sh
