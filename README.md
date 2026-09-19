@@ -11,6 +11,7 @@ Back up an existing SSH directory before cloning:
     test ! -e ~/.ssh.bk
     git clone https://github.com/KyotaHelloworld/.ssh.git ~/.ssh.new
     chmod 700 ~/.ssh.new
+    chmod 600 ~/.ssh.new/authorized_keys
     if test -e ~/.ssh; then mv ~/.ssh ~/.ssh.bk; fi
     if ! mv ~/.ssh.new ~/.ssh; then
         if test -e ~/.ssh.bk; then mv ~/.ssh.bk ~/.ssh; fi
@@ -19,8 +20,9 @@ Back up an existing SSH directory before cloning:
 )
 ```
 
-Restore any required keys, private config fragments, `known_hosts`, and
-`authorized_keys` from the backup after the clone.
+The repository includes an empty `authorized_keys` file. Add any required
+public keys locally after cloning. Restore private keys, private config
+fragments, and `known_hosts` from the backup as needed.
 
 ## Create a key and config fragment
 
