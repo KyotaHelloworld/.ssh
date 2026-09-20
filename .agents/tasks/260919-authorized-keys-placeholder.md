@@ -2,7 +2,7 @@
 
 - Branch: `feature/authorized-keys-placeholder`
 - Worktree: external task worktree `authorized-keys-placeholder`
-- Status: implemented and validated; awaiting user acceptance for local master integration
+- Status: accepted; ready for local master integration and authorized push
 
 ## Acceptance
 
@@ -14,6 +14,7 @@
 ## Intended commit
 
 - `Add authorized_keys placeholder`
+- `Record authorized_keys acceptance`
 
 ## Work
 
@@ -30,3 +31,8 @@
 - `authorized_keys` is no longer ignored.
 - Applying the documented `chmod 600` produced mode 600.
 - Both staged and unstaged `git diff --check` passed.
+
+## Acceptance decision
+
+- On 2026-09-20, kyota requested that every branch not yet on `master` be
+  merged and pushed.
