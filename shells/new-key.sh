@@ -22,7 +22,7 @@ Options:
   --port <1-65535>        Add Port to the generated fragment.
   --key-type <type>       Key type: ed25519 (default) or rsa.
   --key-file <filename>   Private-key filename (default: id).
-  --comment <comment>     Public-key comment (default: ssh-key:<name>).
+  --comment <comment>     Public-key comment (default: local user@host).
   --no-passphrase         Explicitly create the key without a passphrase.
   --prompt-connection     Prompt for a missing login user and IP/domain.
   --skip-existing         Succeed without changes when both outputs already exist.
@@ -200,8 +200,6 @@ validate_inputs() {
   if [[ "${KEY_COMMENT}" == *$'\n'* || "${KEY_COMMENT}" == *$'\r'* ]]; then
     die "comment must fit on one line" || return 1
   fi
-
-  [[ -n "${KEY_COMMENT}" ]] || KEY_COMMENT="ssh-key:${NEW_KEY_NAME}"
 }
 
 prompt_for_connection() {
@@ -291,8 +289,10 @@ generate_staged_outputs() {
     -t "${KEY_TYPE}"
     -f "${STAGING_DIR}/${KEY_FILE}"
     -a 100
-    -C "${KEY_COMMENT}"
   )
+  if [[ -n "${KEY_COMMENT}" ]]; then
+    keygen_args+=(-C "${KEY_COMMENT}")
+  fi
   if [[ "${KEY_TYPE}" == "rsa" ]]; then
     keygen_args+=(-b 4096)
   fi
