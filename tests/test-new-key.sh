@@ -65,6 +65,20 @@ assert_equals() {
     die "expected '${expected}', got '${actual}'"
 }
 
+assert_public_key_comment() {
+  local expected="$1"
+  local path="$2"
+  local key_type
+  local key_data
+  local actual
+
+  IFS=' ' read -r key_type key_data actual <"${path}" ||
+    die "could not read public key: ${path}" || return 1
+  [[ -n "${key_type}" && -n "${key_data}" ]] ||
+    die "malformed public key: ${path}" || return 1
+  assert_equals "${expected}" "${actual}"
+}
+
 assert_mode() {
   local expected="$1"
   local path="$2"
@@ -114,6 +128,7 @@ test_complete_generation() {
   assert_mode 644 "${public_key}"
   assert_mode 600 "${fragment}"
   ssh-keygen -lf "${public_key}" >/dev/null
+  assert_public_key_comment "$(id -un)@$(hostname)" "${public_key}"
   assert_contains "Host github" "${fragment}"
   assert_contains "    HostName github.com" "${fragment}"
   assert_contains "    User git" "${fragment}"
@@ -247,6 +262,9 @@ test_direct_cli_generation() {
 
   assert_file "${FIXTURE_ROOT}/keys/cli/cli.id"
   assert_file "${FIXTURE_ROOT}/keys/cli/cli.id.pub"
+  assert_public_key_comment \
+    "fixture CLI key" \
+    "${FIXTURE_ROOT}/keys/cli/cli.id.pub"
   assert_contains \
     "    IdentityFile ~/.ssh/keys/cli/cli.id" \
     "${FIXTURE_ROOT}/config.d/cli.conf"
@@ -337,6 +355,8 @@ run() {
   require_command make || return 1
   require_command find || return 1
   require_command grep || return 1
+  require_command hostname || return 1
+  require_command id || return 1
   require_command ln || return 1
   require_command mktemp || return 1
   require_command ssh || return 1

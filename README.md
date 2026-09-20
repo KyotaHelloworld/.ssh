@@ -69,6 +69,15 @@ command line skips the corresponding question. After these questions,
 The direct `shells/new-key.sh` command keeps these values optional unless
 `--prompt-connection` is specified.
 
+Unless `KEY_COMMENT` is supplied, the public-key comment uses `ssh-keygen`'s
+local `user@hostname` default so it identifies the PC that created the key.
+The remote login user and destination remain in the generated SSH config. To
+set an explicit comment instead:
+
+```sh
+make new-key-service KEY_COMMENT='shared deployment key'
+```
+
 ## Add another route to the same machine
 
 An existing machine can have separate IPv6, IPv4, and VPN addresses while
