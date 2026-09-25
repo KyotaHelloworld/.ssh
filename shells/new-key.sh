@@ -24,7 +24,7 @@ Options:
   --key-file <filename>   Private-key filename (default: id).
   --comment <comment>     Public-key comment (default: local user@host).
   --no-passphrase         Explicitly create the key without a passphrase.
-  --prompt-connection     Prompt for a missing login user and IP/domain.
+  --prompt-connection     Prompt for a missing login user, IP/domain, and port.
   --skip-existing         Succeed without changes when both outputs already exist.
   -h, --help              Show this help.
 
@@ -212,6 +212,10 @@ prompt_for_connection() {
   if [[ -z "${HOST_NAME}" ]]; then
     printf 'IP address or domain: ' >&2
     IFS= read -r HOST_NAME || die "IP address or domain input ended unexpectedly" || return 1
+  fi
+  if [[ -z "${SSH_PORT_VALUE}" ]]; then
+    printf 'SSH port (blank for 22): ' >&2
+    IFS= read -r SSH_PORT_VALUE || die "SSH port input ended unexpectedly" || return 1
   fi
 
   [[ -n "${REMOTE_USER}" ]] || die "login user name is required" || return 1

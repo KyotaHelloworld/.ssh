@@ -128,7 +128,7 @@ test_complete_generation() {
   assert_mode 644 "${public_key}"
   assert_mode 600 "${fragment}"
   ssh-keygen -lf "${public_key}" >/dev/null
-  assert_public_key_comment "$(id -un)@$(hostname)" "${public_key}"
+  assert_public_key_comment "$(id -un)@$(uname -n)" "${public_key}"
   assert_contains "Host github" "${fragment}"
   assert_contains "    HostName github.com" "${fragment}"
   assert_contains "    User git" "${fragment}"
@@ -147,16 +147,33 @@ test_complete_generation() {
 test_interactive_make_generation() {
   local prompt_output
   prompt_output="$(
-    printf '%s\n' deploy server.example.com |
+    printf '%s\n' deploy server.example.com 2202 |
       make -C "${FIXTURE_ROOT}" --no-print-directory \
         new-key-conoha NO_PASSPHRASE=1 2>&1 >/dev/null
   )"
 
-  assert_equals "Login user name: IP address or domain: " "${prompt_output}"
+  assert_equals "Login user name: IP address or domain: SSH port (blank for 22): " "${prompt_output}"
   assert_file "${FIXTURE_ROOT}/keys/conoha/id"
   assert_contains "Host conoha" "${FIXTURE_ROOT}/config.d/conoha.conf"
   assert_contains "    HostName server.example.com" "${FIXTURE_ROOT}/config.d/conoha.conf"
   assert_contains "    User deploy" "${FIXTURE_ROOT}/config.d/conoha.conf"
+  assert_contains "    Port 2202" "${FIXTURE_ROOT}/config.d/conoha.conf"
+}
+
+test_interactive_default_port() {
+  local default_root="${TEMP_ROOT}/default-port-repo"
+  local fragment="${default_root}/config.d/default-port.conf"
+  local resolved
+  create_fixture_at "${default_root}"
+
+  printf '%s\n' deploy default.example '' |
+    make -C "${default_root}" --no-print-directory \
+      new-key-default-port NO_PASSPHRASE=1 >/dev/null 2>&1
+
+  assert_file "${fragment}"
+  assert_not_contains '    Port ' "${fragment}"
+  resolved="$(ssh -G -F "${fragment}" default-port 2>/dev/null)"
+  grep -Fqx 'port 22' <<<"${resolved}" || die "blank port did not use SSH default"
 }
 
 test_preseeded_values_skip_prompts() {
@@ -169,18 +186,21 @@ test_preseeded_values_skip_prompts() {
       new-key-conoha \
       NO_PASSPHRASE=1 \
       HOST_NAME=198.51.100.7 \
-      REMOTE_USER=root 2>&1 >/dev/null
+      REMOTE_USER=root \
+      SSH_PORT=22 2>&1 >/dev/null
   )"
 
   assert_equals "" "${prompt_output}"
   assert_contains "    HostName 198.51.100.7" "${preset_root}/config.d/conoha.conf"
   assert_contains "    User root" "${preset_root}/config.d/conoha.conf"
+  assert_contains "    Port 22" "${preset_root}/config.d/conoha.conf"
 
   make -C "${preset_root}" --no-print-directory \
     new-key-ipv6 \
     NO_PASSPHRASE=1 \
     HOST_NAME=::1 \
-    REMOTE_USER=root >/dev/null
+    REMOTE_USER=root \
+    SSH_PORT=2222 >/dev/null
   assert_contains "    HostName ::1" "${preset_root}/config.d/ipv6.conf"
 }
 
@@ -190,16 +210,17 @@ test_partial_preseed_skips_one_prompt() {
   create_fixture_at "${partial_root}"
 
   prompt_output="$(
-    printf '%s\n' app-user |
+    printf '%s\n' app-user 2223 |
       make -C "${partial_root}" --no-print-directory \
         new-key-partial \
         NO_PASSPHRASE=1 \
         HOST_NAME=partial.example 2>&1 >/dev/null
   )"
 
-  assert_equals "Login user name: " "${prompt_output}"
+  assert_equals "Login user name: SSH port (blank for 22): " "${prompt_output}"
   assert_contains "    HostName partial.example" "${partial_root}/config.d/partial.conf"
   assert_contains "    User app-user" "${partial_root}/config.d/partial.conf"
+  assert_contains "    Port 2223" "${partial_root}/config.d/partial.conf"
 }
 
 test_incomplete_interactive_input_leaves_no_output() {
@@ -223,6 +244,16 @@ test_incomplete_interactive_input_leaves_no_output() {
   fi
   [[ ! -e "${failure_root}/keys/invalid-address" ]] ||
     die "invalid connection input created a key directory"
+
+  if printf '%s\n' deploy valid.example 0 |
+    make -C "${failure_root}" --no-print-directory \
+      new-key-invalid-port NO_PASSPHRASE=1 >/dev/null 2>&1; then
+    die "key generation unexpectedly accepted an invalid port"
+  fi
+  [[ ! -e "${failure_root}/keys/invalid-port" ]] ||
+    die "invalid port created a key directory"
+  [[ ! -e "${failure_root}/config.d/invalid-port.conf" ]] ||
+    die "invalid port created a config fragment"
 }
 
 test_default_generation_resumes() {
@@ -230,7 +261,7 @@ test_default_generation_resumes() {
   local github_hash_before
   github_hash_before="$(sha256sum -- "${github_key}")"
 
-  printf '%s\n' forgejo-user forgejo.example |
+  printf '%s\n' forgejo-user forgejo.example '' |
     make -C "${FIXTURE_ROOT}" --no-print-directory \
       new-key-default NO_PASSPHRASE=1 >/dev/null 2>&1
 
@@ -316,7 +347,8 @@ test_legacy_variables() {
     CT=rsa \
     FN=legacy.id \
     HOST_NAME=legacy.example \
-    REMOTE_USER=legacy >/dev/null
+    REMOTE_USER=legacy \
+    SSH_PORT=22 >/dev/null
   assert_file "${FIXTURE_ROOT}/keys/legacy/legacy.id"
   ssh-keygen -lf "${FIXTURE_ROOT}/keys/legacy/legacy.id.pub" |
     grep -Fq '(RSA)' || die "legacy CT variable did not select RSA"
@@ -355,7 +387,6 @@ run() {
   require_command make || return 1
   require_command find || return 1
   require_command grep || return 1
-  require_command hostname || return 1
   require_command id || return 1
   require_command ln || return 1
   require_command mktemp || return 1
@@ -363,9 +394,11 @@ run() {
   require_command ssh-keygen || return 1
   require_command sha256sum || return 1
   require_command stat || return 1
+  require_command uname || return 1
   create_fixture
   test_complete_generation
   test_interactive_make_generation
+  test_interactive_default_port
   test_preseeded_values_skip_prompts
   test_partial_preseed_skips_one_prompt
   test_incomplete_interactive_input_leaves_no_output
