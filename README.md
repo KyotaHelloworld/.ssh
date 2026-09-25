@@ -30,7 +30,7 @@ The generation command creates both the key pair and a matching ignored
 `config.d/<name>.conf` fragment. Existing output is never overwritten.
 
 ```sh
-make new-key-github HOST_NAME=github.com REMOTE_USER=git
+make new-key-github HOST_NAME=github.com REMOTE_USER=git SSH_PORT=22
 ```
 
 This creates:
@@ -48,6 +48,7 @@ that can always be derived safely:
 Host github
     HostName github.com
     User git
+    Port 22
     IdentityFile ~/.ssh/keys/github/id
     IdentitiesOnly yes
 ```
@@ -59,11 +60,13 @@ supplied on the command line:
 $ make new-key-conoha
 Login user name: deploy
 IP address or domain: 203.0.113.10
+SSH port (blank for 22): 2202
 ```
 
 The connection value may be an IP address or a domain name. The answers are
-written as `User` and `HostName`. Supplying `REMOTE_USER` or `HOST_NAME` on the
-command line skips the corresponding question. After these questions,
+written as `User`, `HostName`, and `Port`. Supplying `REMOTE_USER`, `HOST_NAME`,
+or `SSH_PORT` skips the corresponding question. A blank port uses SSH's default
+port 22 and omits `Port` from the fragment. After these questions,
 `ssh-keygen` securely asks for the key passphrase as usual.
 
 The direct `shells/new-key.sh` command keeps these values optional unless
@@ -90,10 +93,15 @@ Connection suffix (for example v6, v4, or vpn): v6
 IP address or domain: 2001:db8::10
 ```
 
-This creates `config.d/bakery-v6.conf` with the alias `bakery-v6`. It copies
-the current `User`, `Port`, `IdentityFile`, and `IdentitiesOnly` values from
-`config.d/bakery.conf`. The original fragment and `keys/bakery/` remain
-unchanged. Repeat the command with `v4` or `vpn` to add those routes.
+This adds `Host bakery-v6` to `config.d/bakery.conf`. It copies the current
+`User`, optional `Port`, `IdentityFile`, and `IdentitiesOnly` values from the
+base `Host bakery` block. Existing blocks and `keys/bakery/` are preserved.
+Repeat the command with `v4` or `vpn` to add those routes to the same file.
+
+For example, one machine can use `ssh baikin-ufo`, `ssh baikin-ufo-vpn`, and
+`ssh baikin-ufo-v4`. All three aliases point to the key in
+`keys/baikin-ufo/`; a different machine created with `make new-key-<name>`
+gets its own key directory.
 
 Values may be supplied for non-interactive use:
 
@@ -109,9 +117,10 @@ make add-connection-bakery \
     SSH_PORT=22
 ```
 
-Route fragments are snapshots: changing the base fragment later does not
-update routes already added. Existing aliases and config fragments are never
-overwritten. Direct script usage stays non-interactive unless
+Route blocks are snapshots: changing the base block later does not update
+routes already added. Existing aliases are never overwritten. The updated
+config is prepared in a temporary file and then replaced; a failed validation
+leaves it unchanged. Direct script usage stays non-interactive unless
 `--prompt-connection` is supplied; see `make add-connection` for every option.
 
 Each alias performs its own normal SSH host-key verification because this

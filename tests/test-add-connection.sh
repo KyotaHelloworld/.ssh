@@ -115,8 +115,11 @@ create_base() {
   )
   if [[ -n "${port}" ]]; then
     args+=("SSH_PORT=${port}")
+    make -C "${FIXTURE_ROOT}" "${args[@]}" >/dev/null
+  else
+    "${FIXTURE_ROOT}/shells/new-key.sh" --no-passphrase \
+      --host "${host}" --user "${user}" --key-file "${key_file}" "${name}" >/dev/null
   fi
-  make -C "${FIXTURE_ROOT}" "${args[@]}" >/dev/null
 }
 
 copy_base_key() {
@@ -160,13 +163,13 @@ test_route_variants_reuse_base() {
   local base_fragment="${FIXTURE_ROOT}/config.d/github.conf"
   local private_hash_before
   local public_hash_before
-  local config_hash_before
+  local base_copy="${TEMP_ROOT}/github-base.conf"
   local prompt_output
 
   create_base github github.example git 2222
   private_hash_before="$(sha256sum -- "${private_key}")"
   public_hash_before="$(sha256sum -- "${public_key}")"
-  config_hash_before="$(sha256sum -- "${base_fragment}")"
+  cp -- "${base_fragment}" "${base_copy}"
 
   prompt_output="$(
     printf '%s\n' v6 2001:db8::10 |
@@ -177,17 +180,14 @@ test_route_variants_reuse_base() {
     "Connection suffix (for example v6, v4, or vpn): IP address or domain: " \
     "${prompt_output}"
 
-  local v6_fragment="${FIXTURE_ROOT}/config.d/github-v6.conf"
-  assert_file "${v6_fragment}"
-  assert_mode 600 "${v6_fragment}"
-  assert_contains 'Host github-v6' "${v6_fragment}"
-  assert_contains '    HostName 2001:db8::10' "${v6_fragment}"
-  assert_contains '    User git' "${v6_fragment}"
-  assert_contains '    Port 2222' "${v6_fragment}"
-  assert_contains '    IdentityFile ~/.ssh/keys/github/id' "${v6_fragment}"
-  assert_contains '    IdentitiesOnly yes' "${v6_fragment}"
+  assert_file "${base_fragment}"
+  assert_mode 600 "${base_fragment}"
+  assert_contains 'Host github-v6' "${base_fragment}"
+  assert_contains '    HostName 2001:db8::10' "${base_fragment}"
+  [[ ! -e "${FIXTURE_ROOT}/config.d/github-v6.conf" ]] ||
+    die "route created a second config file"
   assert_resolved_route \
-    "${v6_fragment}" github-v6 2001:db8::10 git 2222 \
+    "${base_fragment}" github-v6 2001:db8::10 git 2222 \
     "${SSH_HOME_TOKEN}/.ssh/keys/github/id"
 
   make -C "${FIXTURE_ROOT}" --no-print-directory \
@@ -196,7 +196,7 @@ test_route_variants_reuse_base() {
     HOST_NAME=198.51.100.20 \
     SSH_PORT=22 >/dev/null
   assert_resolved_route \
-    "${FIXTURE_ROOT}/config.d/github-v4.conf" \
+    "${base_fragment}" \
     github-v4 198.51.100.20 git 22 "${SSH_HOME_TOKEN}/.ssh/keys/github/id"
 
   make -C "${FIXTURE_ROOT}" --no-print-directory \
@@ -204,27 +204,40 @@ test_route_variants_reuse_base() {
     CONNECTION_NAME=vpn \
     HOST_NAME=github.vpn.example >/dev/null
   assert_resolved_route \
-    "${FIXTURE_ROOT}/config.d/github-vpn.conf" \
+    "${base_fragment}" \
     github-vpn github.vpn.example git 2222 "${SSH_HOME_TOKEN}/.ssh/keys/github/id"
+  assert_resolved_route \
+    "${base_fragment}" github github.example git 2222 \
+    "${SSH_HOME_TOKEN}/.ssh/keys/github/id"
+  local config_hash_after
+  config_hash_after="$(sha256sum -- "${base_fragment}")"
+  expect_failure "${FIXTURE_ROOT}/shells/add-connection.sh" \
+    --connection v6 --host 2001:db8::11 github
+  [[ "$(sha256sum -- "${base_fragment}")" == "${config_hash_after}" ]] ||
+    die "duplicate alias changed the config"
+  cmp -n "$(stat -c '%s' -- "${base_copy}")" -- "${base_copy}" "${base_fragment}" ||
+    die "base Host block changed"
+  assert_equals 4 "$(grep -c '^Host ' "${base_fragment}")"
 
   [[ "$(sha256sum -- "${private_key}")" == "${private_hash_before}" ]] ||
     die "base private key changed"
   [[ "$(sha256sum -- "${public_key}")" == "${public_hash_before}" ]] ||
     die "base public key changed"
-  [[ "$(sha256sum -- "${base_fragment}")" == "${config_hash_before}" ]] ||
-    die "base config changed"
   [[ ! -e "${FIXTURE_ROOT}/keys/github-v6" ]] || die "route created another key directory"
 }
 
 test_direct_custom_key_and_default_port() {
   create_base custom custom.example deploy "" custom.id
+  [[ "$(sha256sum -- "${FIXTURE_ROOT}/keys/github/id")" != \
+    "$(sha256sum -- "${FIXTURE_ROOT}/keys/custom/custom.id")" ]] ||
+    die "different machines unexpectedly share a private key"
 
   "${FIXTURE_ROOT}/shells/add-connection.sh" \
     --connection lan \
     --host 192.0.2.15 \
     custom >/dev/null
 
-  local fragment="${FIXTURE_ROOT}/config.d/custom-lan.conf"
+  local fragment="${FIXTURE_ROOT}/config.d/custom.conf"
   assert_file "${fragment}"
   assert_contains '    IdentityFile ~/.ssh/keys/custom/custom.id' "${fragment}"
   assert_not_contains '    Port ' "${fragment}"
@@ -248,6 +261,8 @@ test_rejects_invalid_or_incomplete_input() {
   expect_failure "${FIXTURE_ROOT}/shells/add-connection.sh" \
     --connection shell --host "\$(touch ${marker})" github
   expect_failure "${FIXTURE_ROOT}/shells/add-connection.sh" \
+    --connection invalid-port --host 192.0.2.17 --port 70000 github
+  expect_failure "${FIXTURE_ROOT}/shells/add-connection.sh" \
     --connection "${long_suffix}" --host 192.0.2.18 github
   [[ ! -e "${marker}" ]] || die "invalid HostName executed shell content"
 
@@ -258,6 +273,7 @@ test_rejects_invalid_or_incomplete_input() {
   fi
   [[ ! -e "${FIXTURE_ROOT}/config.d/github-eof-route.conf" ]] ||
     die "incomplete prompt input created output"
+  assert_not_contains 'Host github-eof-route' "${FIXTURE_ROOT}/config.d/github.conf"
 }
 
 test_rejects_unsupported_base_configs() {
@@ -309,12 +325,16 @@ test_rejects_collisions_without_changes() {
   local existing="${FIXTURE_ROOT}/config.d/github-existing.conf"
   local existing_hash
 
-  printf 'keep me\n' >"${existing}"
+  printf 'Host github-existing\n    HostName existing.example\n' >"${existing}"
   existing_hash="$(sha256sum -- "${existing}")"
+  local base_hash_before
+  base_hash_before="$(sha256sum -- "${FIXTURE_ROOT}/config.d/github.conf")"
   expect_failure "${FIXTURE_ROOT}/shells/add-connection.sh" \
     --connection existing --host 192.0.2.20 github
   [[ "$(sha256sum -- "${existing}")" == "${existing_hash}" ]] ||
     die "existing route config changed"
+  [[ "$(sha256sum -- "${FIXTURE_ROOT}/config.d/github.conf")" == "${base_hash_before}" ]] ||
+    die "collision changed the base config"
 
   ln -s -- "${TEMP_ROOT}/missing" "${FIXTURE_ROOT}/config.d/github-dangling.conf"
   expect_failure "${FIXTURE_ROOT}/shells/add-connection.sh" \
@@ -325,9 +345,6 @@ test_rejects_collisions_without_changes() {
   expect_failure "${FIXTURE_ROOT}/shells/add-connection.sh" \
     --connection other --host 192.0.2.22 github
 
-  mkdir -- "${FIXTURE_ROOT}/config.d/github-directory.conf"
-  expect_failure "${FIXTURE_ROOT}/shells/add-connection.sh" \
-    --connection directory --host 192.0.2.23 github
 }
 
 test_rejects_symlinked_inputs() {
@@ -356,7 +373,8 @@ test_rejects_symlinked_inputs() {
     new-key-base \
     NO_PASSPHRASE=1 \
     HOST_NAME=base.example \
-    REMOTE_USER=deploy >/dev/null
+    REMOTE_USER=deploy \
+    SSH_PORT=22 >/dev/null
   mv -- "${symlink_root}/config.d" "${symlink_root}/real-config.d"
   ln -s -- "${symlink_root}/real-config.d" "${symlink_root}/config.d"
   expect_failure "${symlink_root}/shells/add-connection.sh" \
@@ -387,8 +405,21 @@ test_parallel_publish_is_no_replace() {
   [[ "${status_one}" == "0" ]] && ((successes += 1))
   [[ "${status_two}" == "0" ]] && ((successes += 1))
   assert_equals 1 "${successes}"
-  assert_file "${FIXTURE_ROOT}/config.d/parallel-vpn.conf"
-  assert_mode 600 "${FIXTURE_ROOT}/config.d/parallel-vpn.conf"
+  assert_file "${FIXTURE_ROOT}/config.d/parallel.conf"
+  assert_mode 600 "${FIXTURE_ROOT}/config.d/parallel.conf"
+  assert_equals 1 "$(grep -c '^Host parallel-vpn$' "${FIXTURE_ROOT}/config.d/parallel.conf")"
+
+  "${FIXTURE_ROOT}/shells/add-connection.sh" \
+    --connection v4 --host 192.0.2.40 parallel >/dev/null 2>&1 &
+  pid_one=$!
+  "${FIXTURE_ROOT}/shells/add-connection.sh" \
+    --connection v6 --host 2001:db8::40 parallel >/dev/null 2>&1 &
+  pid_two=$!
+  wait "${pid_one}"
+  wait "${pid_two}"
+  assert_contains 'Host parallel-v4' "${FIXTURE_ROOT}/config.d/parallel.conf"
+  assert_contains 'Host parallel-v6' "${FIXTURE_ROOT}/config.d/parallel.conf"
+  assert_equals 4 "$(grep -c '^Host ' "${FIXTURE_ROOT}/config.d/parallel.conf")"
 }
 
 cleanup() {
@@ -403,6 +434,7 @@ cleanup() {
 run() {
   require_command chmod || return 1
   require_command cp || return 1
+  require_command cmp || return 1
   require_command find || return 1
   require_command grep || return 1
   require_command ln || return 1
