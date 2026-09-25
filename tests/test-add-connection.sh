@@ -344,7 +344,36 @@ test_rejects_collisions_without_changes() {
   printf 'Host github-other\n' >"${FIXTURE_ROOT}/config.d/different-name.conf"
   expect_failure "${FIXTURE_ROOT}/shells/add-connection.sh" \
     --connection other --host 192.0.2.22 github
+}
 
+test_rejects_shadowing_patterns() {
+  local base_config="${FIXTURE_ROOT}/config.d/wildcard.conf"
+  local hash_before
+
+  create_base wildcard wildcard.example deploy 22
+  printf '\nHost wildcard-*\n    HostName shadow.example\n' >>"${base_config}"
+  hash_before="$(sha256sum -- "${base_config}")"
+  expect_failure "${FIXTURE_ROOT}/shells/add-connection.sh" \
+    --connection vpn --host vpn.example wildcard
+  [[ "$(sha256sum -- "${base_config}")" == "${hash_before}" ]] ||
+    die "shadowing pattern changed the config"
+  assert_not_contains 'Host wildcard-vpn' "${base_config}"
+
+  create_base prior prior.example deploy 22
+  printf 'Host prior-*\n    HostName shadow.example\n' \
+    >"${FIXTURE_ROOT}/config.d/00-prior.conf"
+  expect_failure "${FIXTURE_ROOT}/shells/add-connection.sh" \
+    --connection vpn --host vpn.example prior
+  assert_not_contains 'Host prior-vpn' "${FIXTURE_ROOT}/config.d/prior.conf"
+
+  create_base excluded excluded.example deploy 22
+  printf '\nHost !excluded-vpn excluded-*\n    HostName shadow.example\n' \
+    >>"${FIXTURE_ROOT}/config.d/excluded.conf"
+  "${FIXTURE_ROOT}/shells/add-connection.sh" \
+    --connection vpn --host vpn.example excluded >/dev/null
+  assert_resolved_route \
+    "${FIXTURE_ROOT}/config.d/excluded.conf" excluded-vpn vpn.example deploy 22 \
+    "${SSH_HOME_TOKEN}/.ssh/keys/excluded/id"
 }
 
 test_rejects_symlinked_inputs() {
@@ -451,6 +480,7 @@ run() {
   test_rejects_invalid_or_incomplete_input
   test_rejects_unsupported_base_configs
   test_rejects_collisions_without_changes
+  test_rejects_shadowing_patterns
   test_rejects_symlinked_inputs
   test_parallel_publish_is_no_replace
   assert_no_staging_files

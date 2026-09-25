@@ -123,6 +123,13 @@ config is prepared in a temporary file and then replaced; a failed validation
 leaves it unchanged. Direct script usage stays non-interactive unless
 `--prompt-connection` is supplied; see `make add-connection` for every option.
 
+The [OpenSSH client configuration manual](https://man.openbsd.org/ssh_config.5)
+explains that SSH keeps the first `HostName` value it obtains. If an earlier
+wildcard `Host` pattern would match the new alias, the command stops without changing
+the config. Move the wildcard to a fragment whose filename sorts after the
+machine's `.conf`, then retry. You can also place the exact route above it
+manually.
+
 Each alias performs its own normal SSH host-key verification because this
 command does not add `HostKeyAlias`. That avoids silently trusting that every
 address actually reaches the same SSH server.

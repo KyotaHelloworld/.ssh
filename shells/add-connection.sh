@@ -37,8 +37,9 @@ Reuse behavior:
 
 Exit behavior:
   Returns non-zero without creating output when the base entry is unsupported,
-  input is invalid, or the new alias already exists. The config is replaced
-  atomically only after a complete updated copy has been prepared.
+  input is invalid, the new alias already exists, or an earlier Host pattern
+  would shadow the new route. The config is replaced atomically only after a
+  complete updated copy has been prepared.
 EOF
 }
 
@@ -325,11 +326,32 @@ validate_connection_inputs() {
   fi
 }
 
-alias_is_already_defined() {
+host_pattern_matches_new_alias() {
+  local token
+  local pattern
+  local matched=0
+  local candidate="${NEW_ALIAS,,}"
+
+  for token in "$@"; do
+    [[ "${token}" != \#* ]] || break
+    pattern="${token,,}"
+    if [[ "${pattern}" == !* ]]; then
+      pattern="${pattern:1}"
+      [[ "${candidate}" == ${pattern} ]] && return 1
+    elif [[ "${candidate}" == ${pattern} ]]; then
+      matched=1
+    fi
+  done
+  [[ "${matched}" == "1" ]]
+}
+
+find_alias_conflict() {
   local config_file
   local line
   local -a fields
   local token
+  local earlier_fragment=1
+  local shadowed=0
 
   for config_file in "${PROJECT_ROOT}"/config.d/*"${CONFIG_EXTENSION}"; do
     if [[ -L "${config_file}" ]]; then
@@ -347,20 +369,31 @@ alias_is_already_defined() {
           return 0
         fi
       done
+      if [[ "${earlier_fragment}" == "1" ]] &&
+        host_pattern_matches_new_alias "${fields[@]:1}"; then
+        shadowed=1
+      fi
     done <"${config_file}"
+    if [[ "${config_file}" == "${BASE_CONFIG_PATH}" ]]; then
+      earlier_fragment=0
+    fi
   done
+  [[ "${shadowed}" == "0" ]] || return 3
   return 1
 }
 
 preflight_output() {
   local alias_check_status
 
-  if alias_is_already_defined; then
+  if find_alias_conflict; then
     die "SSH Host alias is already defined: ${NEW_ALIAS}" || return 1
   else
     alias_check_status=$?
     if [[ "${alias_check_status}" == "2" ]]; then
       die "cannot safely check aliases while config.d contains a symlinked fragment" || return 1
+    elif [[ "${alias_check_status}" == "3" ]]; then
+      die "an earlier Host pattern matches ${NEW_ALIAS}; move it to a later config fragment or add the exact route above it manually" ||
+        return 1
     fi
   fi
 }
